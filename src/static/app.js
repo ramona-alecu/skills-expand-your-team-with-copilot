@@ -363,6 +363,16 @@ document.addEventListener("DOMContentLoaded", () => {
     return "academic";
   }
 
+  // Escape a string for safe use in an HTML attribute value
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
   // Function to fetch activities from API with optional day and time filters
   async function fetchActivities() {
     // Show loading skeletons first
@@ -568,6 +578,16 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
         `
         }
+        <div class="share-container">
+          <button class="share-button" data-activity="${name}" aria-label="Share this activity">
+            <span class="share-icon">🔗</span> Share
+          </button>
+          <div class="share-dropdown hidden">
+            <button class="share-option" data-action="copy" data-activity="${escapeHtml(name)}">📋 Copy Link</button>
+            <button class="share-option" data-action="email" data-activity="${escapeHtml(name)}" data-description="${escapeHtml(details.description)}" data-schedule="${escapeHtml(formattedSchedule)}">✉️ Email</button>
+            <button class="share-option" data-action="whatsapp" data-activity="${escapeHtml(name)}" data-description="${escapeHtml(details.description)}" data-schedule="${escapeHtml(formattedSchedule)}">💬 WhatsApp</button>
+          </div>
+        </div>
       </div>
     `;
 
@@ -586,6 +606,54 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }
     }
+
+    // Add share button handler
+    const shareButton = activityCard.querySelector(".share-button");
+    const shareDropdown = activityCard.querySelector(".share-dropdown");
+    shareButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const activityUrl = `${window.location.origin}${window.location.pathname}?activity=${encodeURIComponent(name)}`;
+      // Use Web Share API when available (e.g. on mobile)
+      if (navigator.share) {
+        navigator.share({
+          title: name,
+          text: `Check out this activity at Mergington High School: ${name} — ${details.description}`,
+          url: activityUrl,
+        }).catch(() => {});
+      } else {
+        // Toggle dropdown for desktop
+        shareDropdown.classList.toggle("hidden");
+      }
+    });
+
+    // Share option handlers
+    const shareOptions = activityCard.querySelectorAll(".share-option");
+    shareOptions.forEach((option) => {
+      option.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const action = option.dataset.action;
+        const activityUrl = `${window.location.origin}${window.location.pathname}?activity=${encodeURIComponent(name)}`;
+        const activityDescription = option.dataset.description || details.description;
+        const activitySchedule = option.dataset.schedule || formattedSchedule;
+        const shareText = `Check out "${name}" at Mergington High School!\n${activityDescription}\nSchedule: ${activitySchedule}\n${activityUrl}`;
+
+        if (action === "copy") {
+          navigator.clipboard.writeText(activityUrl).then(() => {
+            showMessage("Link copied to clipboard!", "success");
+          }).catch(() => {
+            showMessage("Unable to copy automatically. You can copy the link from your browser's address bar.", "error");
+          });
+        } else if (action === "email") {
+          const subject = encodeURIComponent(`Join me: ${name} at Mergington High School`);
+          const body = encodeURIComponent(shareText);
+          window.open(`mailto:?subject=${subject}&body=${body}`, "_blank");
+        } else if (action === "whatsapp") {
+          window.open(`https://wa.me/?text=${encodeURIComponent(shareText)}`, "_blank");
+        }
+
+        shareDropdown.classList.add("hidden");
+      });
+    });
 
     activitiesList.appendChild(activityCard);
   }
@@ -666,6 +734,13 @@ document.addEventListener("DOMContentLoaded", () => {
     "click",
     closeRegistrationModalHandler
   );
+
+  // Close share dropdowns when clicking outside
+  document.addEventListener("click", () => {
+    document.querySelectorAll(".share-dropdown:not(.hidden)").forEach((dropdown) => {
+      dropdown.classList.add("hidden");
+    });
+  });
 
   // Close modal when clicking outside of it
   window.addEventListener("click", (event) => {
